@@ -10,6 +10,13 @@ This is a React-based web application that allows users to upload multiple image
 - Responsive design
 - Custom video player for generated videos
 
+## Interface
+
+Before Web Socket connection: <br/>
+
+<img width="1271" alt="image" src="https://github.com/user-attachments/assets/0a3ad88b-57e6-42c4-9991-ea8a26c0e2e8">
+
+
 ## Prerequisites
 
 - Node.js (v14 or later)
