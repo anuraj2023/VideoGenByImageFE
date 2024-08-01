@@ -258,9 +258,13 @@ const App: React.FC = () => {
           </div>
           {uploadQueue.length > 0 && (
             <div className="mt-6 space-y-6">
-              {uploadQueue.map(task => (
+              {uploadQueue.map(task => {
+              const filename = task.videoUrl 
+              ? task.videoUrl.split('/').pop()
+              : task.file.name;
+              return (
                 <div key={task.id} className="bg-white shadow-sm rounded-lg p-4">
-                  <h2 className="text-lg font-semibold mb-2">{task.file.name}</h2>
+                  <h2 className="text-lg font-semibold mb-2">{filename}</h2>
                   {!task.videoUrl && (
                     <>
                       <div className="w-full bg-gray-200 rounded-full h-2.5 dark:bg-gray-700">
@@ -277,8 +281,9 @@ const App: React.FC = () => {
                   )}
                   {task.videoUrl && <CustomVideoPlayer src={task.videoUrl} />}
                 </div>
-              ))}
-            </div>
+              );
+            })}
+          </div>      
         )}
         </CardContent>
       </Card>
