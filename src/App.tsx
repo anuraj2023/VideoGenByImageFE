@@ -280,7 +280,7 @@ const App: React.FC = () => {
                   <div key={task.id} className="bg-white shadow-sm rounded-lg p-4">
                     <h2 className="text-lg font-semibold mb-2">{filename}</h2>
                     {!task.videoUrl && (
-                      <>
+                      <div>
                         <div className="w-full bg-gray-200 rounded-full h-2.5 dark:bg-gray-700">
                           <div 
                             className="bg-blue-600 h-2.5 rounded-full" 
@@ -291,7 +291,7 @@ const App: React.FC = () => {
                         <p className="text-center mt-2 text-sm text-gray-600">
                           {task.status || `${task.progress}% complete`}
                         </p>
-                      </>
+                      </div>
                     )}
                     {task.videoUrl && <CustomVideoPlayer src={task.videoUrl} />}
                   </div>
