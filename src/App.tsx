@@ -25,12 +25,14 @@ interface WebSocketMessage {
   filename: string;
   value?: number;
   video_url?: string;
+  message?: string;
 }
 
 const App: React.FC = () => {
   const [uploadQueue, setUploadQueue] = useState<VideoDetails[]>([]);
   const [isConnected, setIsConnected] = useState(false);
   const [shouldReconnect, setShouldReconnect] = useState(true);
+  const [isExplicitlyDisconnected, setIsExplicitlyDisconnected] = useState(false);
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const socketRef = useRef<WebSocket | null>(null);
@@ -64,25 +66,34 @@ const App: React.FC = () => {
   const handleDisconnect = useCallback(() => {
     console.log('WebSocket disconnected');
     setIsConnected(false);
-    toast({
-      title: 'WebSocket Disconnected',
-      description: 'Attempting to reconnect...',
-      variant: 'destructive',
-    });
+    
+    if (!isExplicitlyDisconnected) {
+      toast({
+        title: 'WebSocket Disconnected',
+        description: 'Attempting to reconnect...',
+        variant: 'destructive',
+      });
 
-    // Exponential backoff for reconnection
-    const delay = Math.min(1000 * 2 ** reconnectAttemptsRef.current, MAX_RECONNECT_DELAY);
-    reconnectAttemptsRef.current++;
-    if (reconnectTimeoutRef.current) {
-      clearTimeout(reconnectTimeoutRef.current);
+      // Exponential backoff for reconnection
+      const delay = Math.min(1000 * 2 ** reconnectAttemptsRef.current, MAX_RECONNECT_DELAY);
+      reconnectAttemptsRef.current++;
+      if (reconnectTimeoutRef.current) {
+        clearTimeout(reconnectTimeoutRef.current);
+      }
+      reconnectTimeoutRef.current = setTimeout(() => {
+        setShouldReconnect(true);
+      }, delay);
+    } else {
+      toast({
+        title: 'Connection Restricted',
+        description: 'Another client is currently connected. Please try again later.',
+        variant: 'destructive',
+      });
     }
-    reconnectTimeoutRef.current = setTimeout(() => {
-      setShouldReconnect(true);
-    }, delay);
-  }, [toast]);
+  }, [toast, isExplicitlyDisconnected]);
 
   const connectWebSocket = useCallback(() => {
-    if (socketRef.current?.readyState === WebSocket.OPEN || !shouldReconnect) {
+    if (socketRef.current?.readyState === WebSocket.OPEN || !shouldReconnect || isExplicitlyDisconnected) {
       return;
     }
 
@@ -93,6 +104,7 @@ const App: React.FC = () => {
       setIsConnected(true);
       reconnectAttemptsRef.current = 0;
       setShouldReconnect(false);
+      setIsExplicitlyDisconnected(false);
       toast({
         title: 'WebSocket Connected',
         description: 'Ready to process images.',
@@ -116,7 +128,12 @@ const App: React.FC = () => {
     newSocket.onmessage = (event) => {
       const data = JSON.parse(event.data);
       console.log('Received WebSocket message:', data);
-      processMessage(data);
+      if (data.type === 'error' && data.message === 'Another client is already connected') {
+        setIsExplicitlyDisconnected(true);
+        newSocket.close();
+      } else {
+        processMessage(data);
+      }
     };
 
     newSocket.onerror = (error) => {
@@ -125,10 +142,10 @@ const App: React.FC = () => {
     };
 
     socketRef.current = newSocket;
-  }, [toast, processMessage, handleDisconnect, shouldReconnect]);
+  }, [toast, processMessage, handleDisconnect, shouldReconnect, isExplicitlyDisconnected]);
 
   useEffect(() => {
-    if (shouldReconnect) {
+    if (shouldReconnect && !isExplicitlyDisconnected) {
       connectWebSocket();
     }
 
@@ -140,7 +157,7 @@ const App: React.FC = () => {
         socketRef.current.close();
       }
     };
-  }, [connectWebSocket, shouldReconnect]);
+  }, [connectWebSocket, shouldReconnect, isExplicitlyDisconnected]);
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     if (event.target.files) {
@@ -253,7 +270,7 @@ const App: React.FC = () => {
               <Button
                 onClick={() => fileInputRef.current?.click()}
                 className="flex items-center px-4 py-2 bg-blue-500 text-white border border-transparent rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-                disabled={!isConnected}
+                disabled={!isConnected || isExplicitlyDisconnected}
               >
                 <Upload className="mr-2 w-5 h-5" /> Choose files and generate video
               </Button>
@@ -266,7 +283,7 @@ const App: React.FC = () => {
                 onChange={handleFileChange}
                 accept="image/*"
                 multiple
-                disabled={!isConnected}
+                disabled={!isConnected || isExplicitlyDisconnected}
               />
             </div>
           </div>
