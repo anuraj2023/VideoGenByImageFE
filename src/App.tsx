@@ -82,7 +82,7 @@ const App: React.FC = () => {
         description: `Attempting to reconnect... (Attempt ${reconnectAttemptsRef.current + 1}/${MAX_RECONNECT_ATTEMPTS})`,
         variant: 'destructive',
       });
-
+  
       reconnectAttemptsRef.current++;
       setTimeout(() => {
         setShouldReconnect(true);
@@ -102,6 +102,41 @@ const App: React.FC = () => {
       });
     }
   }, [toast, isExplicitlyDisconnected]);
+
+  // const handleDisconnect = useCallback((event?: CloseEvent) => {
+  //   console.log('Handling WebSocket disconnect', event);
+  //   setIsConnected(false);
+    
+  //   if (pingIntervalRef.current) {
+  //     clearInterval(pingIntervalRef.current);
+  //   }
+    
+  //   if (!isExplicitlyDisconnected && reconnectAttemptsRef.current < MAX_RECONNECT_ATTEMPTS) {
+  //     toast({
+  //       title: 'WebSocket Disconnected',
+  //       description: `Attempting to reconnect... (Attempt ${reconnectAttemptsRef.current + 1}/${MAX_RECONNECT_ATTEMPTS})`,
+  //       variant: 'destructive',
+  //     });
+
+  //     reconnectAttemptsRef.current++;
+  //     setTimeout(() => {
+  //       setShouldReconnect(true);
+  //     }, RECONNECT_DELAY);
+  //   } else if (reconnectAttemptsRef.current >= MAX_RECONNECT_ATTEMPTS) {
+  //     toast({
+  //       title: 'Connection Failed',
+  //       description: 'Maximum reconnection attempts reached. Please refresh the page.',
+  //       variant: 'destructive',
+  //     });
+  //     setIsExplicitlyDisconnected(true);
+  //   } else {
+  //     toast({
+  //       title: 'Connection Restricted',
+  //       description: 'Another client is currently connected. Please try again later.',
+  //       variant: 'destructive',
+  //     });
+  //   }
+  // }, [toast, isExplicitlyDisconnected]);
 
   const connectWebSocket = useCallback(() => {
     if (socketRef.current?.readyState === WebSocket.OPEN || !shouldReconnect || isExplicitlyDisconnected) {
