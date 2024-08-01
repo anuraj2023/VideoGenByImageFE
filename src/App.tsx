@@ -179,7 +179,7 @@ const App: React.FC = () => {
         <CardHeader className="bg-blue-800 text-white p-6">
           <CardTitle className="text-2xl font-bold flex items-center justify-between">
             <div className="flex items-center">
-              <Video className="mr-2 w-6 h-6" /> AI Video Generator
+              <Video className="mr-2 w-6 h-6" /> Simulated AI Video Generator
             </div>
             {!isConnected && (
               <div className="flex items-center text-red-300">
