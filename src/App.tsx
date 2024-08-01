@@ -9,7 +9,8 @@ import './index.css';
 const WEBSOCKET_URL = process.env.REACT_APP_WEBSOCKET_URL || "ws://localhost:8000/ws";
 const API_URL = process.env.REACT_APP_API_URL || "http://localhost:8000";
 
-const MAX_RECONNECT_DELAY = 30000;
+const MAX_RECONNECT_ATTEMPTS = 5;
+const RECONNECT_DELAY = 5000; // 5 seconds
 
 interface VideoDetails {
   id: number;
@@ -37,7 +38,6 @@ const App: React.FC = () => {
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const socketRef = useRef<WebSocket | null>(null);
-  const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const reconnectAttemptsRef = useRef(0);
 
   const processMessage = useCallback((data: WebSocketMessage) => {
@@ -66,26 +66,28 @@ const App: React.FC = () => {
     }
   }, [toast]);
 
-  const handleDisconnect = useCallback(() => {
-    console.log('Handling WebSocket disconnect');
+  const handleDisconnect = useCallback((event?: CloseEvent) => {
+    console.log('Handling WebSocket disconnect', event);
     setIsConnected(false);
     
-    if (!isExplicitlyDisconnected) {
+    if (!isExplicitlyDisconnected && reconnectAttemptsRef.current < MAX_RECONNECT_ATTEMPTS) {
       toast({
         title: 'WebSocket Disconnected',
-        description: 'Attempting to reconnect...',
+        description: `Attempting to reconnect... (Attempt ${reconnectAttemptsRef.current + 1}/${MAX_RECONNECT_ATTEMPTS})`,
         variant: 'destructive',
       });
 
-      // Exponential backoff for reconnection
-      const delay = Math.min(1000 * 2 ** reconnectAttemptsRef.current, MAX_RECONNECT_DELAY);
       reconnectAttemptsRef.current++;
-      if (reconnectTimeoutRef.current) {
-        clearTimeout(reconnectTimeoutRef.current);
-      }
-      reconnectTimeoutRef.current = setTimeout(() => {
+      setTimeout(() => {
         setShouldReconnect(true);
-      }, delay);
+      }, RECONNECT_DELAY);
+    } else if (reconnectAttemptsRef.current >= MAX_RECONNECT_ATTEMPTS) {
+      toast({
+        title: 'Connection Failed',
+        description: 'Maximum reconnection attempts reached. Please refresh the page.',
+        variant: 'destructive',
+      });
+      setIsExplicitlyDisconnected(true);
     } else {
       toast({
         title: 'Connection Restricted',
@@ -105,7 +107,6 @@ const App: React.FC = () => {
 
     newSocket.onopen = () => {
       console.log('WebSocket connection opened');
-      // Don't set as connected yet, wait for confirmation from server
     };
 
     newSocket.onmessage = (event) => {
@@ -134,9 +135,10 @@ const App: React.FC = () => {
         }, 30000);
 
         // Clear interval on socket close
-        newSocket.onclose = () => {
+        newSocket.onclose = (event) => {
           clearInterval(pingInterval);
-          handleDisconnect();
+          console.log('WebSocket closed:', event);
+          handleDisconnect(event);
         };
       } else {
         processMessage(data);
@@ -145,12 +147,6 @@ const App: React.FC = () => {
 
     newSocket.onerror = (error) => {
       console.error('WebSocket error:', error);
-      handleDisconnect();
-    };
-
-    newSocket.onclose = (event) => {
-      console.log('WebSocket closed:', event);
-      handleDisconnect();
     };
 
     socketRef.current = newSocket;
@@ -162,9 +158,6 @@ const App: React.FC = () => {
     }
 
     return () => {
-      if (reconnectTimeoutRef.current) {
-        clearTimeout(reconnectTimeoutRef.current);
-      }
       if (socketRef.current) {
         socketRef.current.close();
       }
