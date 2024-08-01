@@ -17,6 +17,13 @@ interface VideoDetails {
   isProcessing: boolean;
 }
 
+interface WebSocketMessage {
+  type: string;
+  filename: string;
+  value?: number;
+  video_url?: string;
+}
+
 const App: React.FC = () => {
   const [uploadQueue, setUploadQueue] = useState<VideoDetails[]>([]);
   const [isConnected, setIsConnected] = useState(false);
@@ -24,6 +31,30 @@ const App: React.FC = () => {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const socketRef = useRef<WebSocket | null>(null);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const reconnectAttemptsRef = useRef(0);
+  const [messageQueue, setMessageQueue] = useState<WebSocketMessage[]>([]);
+  const handleDisconnectRef = useRef<() => void>(() => {});
+
+  const processMessage = useCallback((data: WebSocketMessage) => {
+    setUploadQueue(prevQueue =>
+      prevQueue.map(task => {
+        if (task.file.name === data.filename) {
+          if (data.type === 'progress') {
+            return { ...task, progress: data.value || 0, isProcessing: true };
+          } else if (data.type === 'complete') {
+            const url = `${API_URL}${data.video_url}`;
+            console.log("file url is : ", url);
+            toast({
+              title: 'Video generation complete!',
+              description: `Video for ${data.filename} is ready to view.`,
+            });
+            return { ...task, videoUrl: url, isProcessing: false, progress: 100 };
+          }
+        }
+        return task;
+      })
+    );
+  }, [toast]);
 
   const connectWebSocket = useCallback(() => {
     if (socketRef.current?.readyState === WebSocket.OPEN) {
@@ -35,61 +66,60 @@ const App: React.FC = () => {
     newSocket.onopen = () => {
       console.log('WebSocket connected');
       setIsConnected(true);
+      reconnectAttemptsRef.current = 0;
       toast({
         title: 'WebSocket Connected',
         description: 'Ready to process images.',
       });
       socketRef.current = newSocket;
+
+      // Send ping every 30 seconds
+      const pingInterval = setInterval(() => {
+        if (newSocket.readyState === WebSocket.OPEN) {
+          newSocket.send(JSON.stringify({ type: 'ping' }));
+        }
+      }, 30000);
+
+      // Clear interval on socket close
+      newSocket.onclose = () => {
+        clearInterval(pingInterval);
+        handleDisconnectRef.current();
+      };
     };
 
     newSocket.onmessage = (event) => {
       const data = JSON.parse(event.data);
       console.log('Received WebSocket message:', data);
-      setUploadQueue(prevQueue =>
-        prevQueue.map(task => {
-          if (task.file.name === data.filename) {
-            if (data.type === 'progress') {
-              return { ...task, progress: data.value, isProcessing: true };
-            } else if (data.type === 'complete') {
-              const url = `${API_URL}${data.video_url}`;
-              console.log("file url is : ", url);
-              return { ...task, videoUrl: url, isProcessing: false, progress: 100 };
-            }
-          }
-          return task;
-        })
-      );
-      if (data.type === 'complete') {
-        toast({
-          title: 'Video generation complete!',
-          description: `Video for ${data.filename} is ready to view.`,
-        });
-      }
+      setMessageQueue(prevQueue => [...prevQueue, data]);
     };
 
     newSocket.onerror = (error) => {
       console.error('WebSocket error:', error);
-      setIsConnected(false);
-      toast({
-        title: 'WebSocket Error',
-        description: 'There was an error with the WebSocket connection.',
-        variant: 'destructive',
-      });
-    };
-
-    newSocket.onclose = () => {
-      console.log('WebSocket disconnected');
-      setIsConnected(false);
-      toast({
-        title: 'WebSocket Disconnected',
-        description: 'Attempting to reconnect...',
-        variant: 'destructive',
-      });
-      reconnectTimeoutRef.current = setTimeout(connectWebSocket, 5000);
+      handleDisconnectRef.current();
     };
 
     socketRef.current = newSocket;
   }, [toast]);
+
+  handleDisconnectRef.current = useCallback(() => {
+    console.log('WebSocket disconnected');
+    setIsConnected(false);
+    toast({
+      title: 'WebSocket Disconnected',
+      description: 'Attempting to reconnect...',
+      variant: 'destructive',
+    });
+
+    // Exponential backoff for reconnection
+    const delay = Math.min(1000 * 2 ** reconnectAttemptsRef.current, 30000);
+    reconnectAttemptsRef.current++;
+    if (reconnectTimeoutRef.current) {
+      clearTimeout(reconnectTimeoutRef.current);
+    }
+    reconnectTimeoutRef.current = setTimeout(() => {
+      connectWebSocket();
+    }, delay);
+  }, [toast, connectWebSocket]);
 
   useEffect(() => {
     connectWebSocket();
@@ -103,6 +133,14 @@ const App: React.FC = () => {
       }
     };
   }, [connectWebSocket]);
+
+  useEffect(() => {
+    if (messageQueue.length > 0) {
+      const [message, ...rest] = messageQueue;
+      processMessage(message);
+      setMessageQueue(rest);
+    }
+  }, [messageQueue, processMessage]);
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     if (event.target.files) {
