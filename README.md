@@ -1,46 +1,75 @@
-# Getting Started with Create React App
+# Simulated AI Video Generator
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+This is a React-based web application that allows users to upload multiple images and transform them into videos using Simulated AI processing. The application provides a user-friendly interface for uploading images, monitoring processing updates, and viewing the generated videos.
 
-## Available Scripts
+## Features
 
-In the project directory, you can run:
+- Upload multiple images
+- Real-time progress tracking
+- WebSocket integration for live updates
+- Responsive design
+- Custom video player for generated videos
 
-### `npm start`
+## Prerequisites
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in the browser.
+- Node.js (v14 or later)
+- npm (v6 or later)
 
-The page will reload if you make edits.\
-You will also see any lint errors in the console.
+## Installation
 
-### `npm test`
+1. Clone the repository:
+   ```
+   git clone https://github.com/yourusername/ai-video-generator.git
+   cd ai-video-generator
+   ```
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+2. Install dependencies:
+   ```
+   npm install
+   ```
 
-### `npm run build`
+3. Set up environment variables:
+   Update the contents of `.env.development` file in the root directory for running locally and add the following:
+   ```
+   REACT_APP_WEBSOCKET_URL=ws://your-backend-url/ws
+   REACT_APP_API_URL=http://your-backend-url
+   ```
+   Replace `your-backend-url` with the actual URL of your local backend server.
 
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
+   Similarly, for production build use `.env.production` file
 
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
+## Usage
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+1. Start the development server:
+   ```
+   npm start
+   ```
 
-### `npm run eject`
+2. Open [http://localhost:3000](http://localhost:3000) in your browser to use the application.
 
-**Note: this is a one-way operation. Once you `eject`, you can’t go back!**
+3. Click on "Choose files and generate video" to select and upload images.
 
-If you aren’t satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
+4. Monitor the progress bar for each uploaded image.
 
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you’re on your own.
+5. Once processing is complete, view the generated video using the built-in video player.
 
-You don’t have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn’t feel obligated to use this feature. However we understand that this tool wouldn’t be useful if you couldn’t customize it when you are ready for it.
+## Building for Production
 
-## Learn More
+To create a production build, run:
+```
+npm run build
+```
 
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
+The built files will be in the `build` folder, ready for deployment.
 
-To learn React, check out the [React documentation](https://reactjs.org/).
+## Technologies Used
+
+- React
+- TypeScript
+- WebSocket for real-time communication
+- Tailwind CSS for styling
+- Lucide React for icons
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
