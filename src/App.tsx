@@ -30,6 +30,7 @@ interface WebSocketMessage {
 const App: React.FC = () => {
   const [uploadQueue, setUploadQueue] = useState<VideoDetails[]>([]);
   const [isConnected, setIsConnected] = useState(false);
+  const [shouldReconnect, setShouldReconnect] = useState(true);
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const socketRef = useRef<WebSocket | null>(null);
@@ -60,8 +61,28 @@ const App: React.FC = () => {
     );
   }, [toast]);
 
+  const handleDisconnect = useCallback(() => {
+    console.log('WebSocket disconnected');
+    setIsConnected(false);
+    toast({
+      title: 'WebSocket Disconnected',
+      description: 'Attempting to reconnect...',
+      variant: 'destructive',
+    });
+
+    // Exponential backoff for reconnection
+    const delay = Math.min(1000 * 2 ** reconnectAttemptsRef.current, MAX_RECONNECT_DELAY);
+    reconnectAttemptsRef.current++;
+    if (reconnectTimeoutRef.current) {
+      clearTimeout(reconnectTimeoutRef.current);
+    }
+    reconnectTimeoutRef.current = setTimeout(() => {
+      setShouldReconnect(true);
+    }, delay);
+  }, [toast]);
+
   const connectWebSocket = useCallback(() => {
-    if (socketRef.current?.readyState === WebSocket.OPEN) {
+    if (socketRef.current?.readyState === WebSocket.OPEN || !shouldReconnect) {
       return;
     }
 
@@ -71,6 +92,7 @@ const App: React.FC = () => {
       console.log('WebSocket connected');
       setIsConnected(true);
       reconnectAttemptsRef.current = 0;
+      setShouldReconnect(false);
       toast({
         title: 'WebSocket Connected',
         description: 'Ready to process images.',
@@ -103,30 +125,12 @@ const App: React.FC = () => {
     };
 
     socketRef.current = newSocket;
-  }, [toast, processMessage]);
-
-  const handleDisconnect = useCallback(() => {
-    console.log('WebSocket disconnected');
-    setIsConnected(false);
-    toast({
-      title: 'WebSocket Disconnected',
-      description: 'Attempting to reconnect...',
-      variant: 'destructive',
-    });
-
-    // Exponential backoff for reconnection
-    const delay = Math.min(1000 * 2 ** reconnectAttemptsRef.current, MAX_RECONNECT_DELAY);
-    reconnectAttemptsRef.current++;
-    if (reconnectTimeoutRef.current) {
-      clearTimeout(reconnectTimeoutRef.current);
-    }
-    reconnectTimeoutRef.current = setTimeout(() => {
-      connectWebSocket();
-    }, delay);
-  }, [toast, connectWebSocket]);
+  }, [toast, processMessage, handleDisconnect, shouldReconnect]);
 
   useEffect(() => {
-    connectWebSocket();
+    if (shouldReconnect) {
+      connectWebSocket();
+    }
 
     return () => {
       if (reconnectTimeoutRef.current) {
@@ -136,7 +140,7 @@ const App: React.FC = () => {
         socketRef.current.close();
       }
     };
-  }, [connectWebSocket]);
+  }, [connectWebSocket, shouldReconnect]);
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     if (event.target.files) {
