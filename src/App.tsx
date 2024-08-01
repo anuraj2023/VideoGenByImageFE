@@ -15,6 +15,7 @@ interface VideoDetails {
   progress: number;
   videoUrl: string | null;
   isProcessing: boolean;
+  status?: string;
 }
 
 interface WebSocketMessage {
@@ -40,6 +41,9 @@ const App: React.FC = () => {
       prevQueue.map(task => {
         if (task.file.name === data.filename) {
           if (data.type === 'progress') {
+            if (data.value === 100) {
+              return { ...task, progress: data.value, isProcessing: true, status: 'Generating video...' };
+            }
             return { ...task, progress: data.value || 0, isProcessing: true };
           } else if (data.type === 'complete') {
             const url = `${API_URL}${data.video_url}`;
@@ -48,7 +52,7 @@ const App: React.FC = () => {
               title: 'Video generation complete!',
               description: `Video for ${data.filename} is ready to view.`,
             });
-            return { ...task, videoUrl: url, isProcessing: false, progress: 100 };
+            return { ...task, videoUrl: url, isProcessing: false, progress: 100, status: 'Complete' };
           }
         }
         return task;
@@ -263,16 +267,19 @@ const App: React.FC = () => {
                         <div 
                           className="bg-blue-600 h-2.5 rounded-full" 
                           style={{ width: `${task.progress}%` }}
-                        ></div>
+                        >
+                        </div>
                       </div>
-                      <p className="text-center mt-2 text-sm text-gray-600">{task.progress}% complete</p>
+                      <p className="text-center mt-2 text-sm text-gray-600">
+                        {task.status || `${task.progress}% complete`}
+                      </p>
                     </>
                   )}
                   {task.videoUrl && <CustomVideoPlayer src={task.videoUrl} />}
                 </div>
               ))}
             </div>
-          )}
+        )}
         </CardContent>
       </Card>
     </div>
