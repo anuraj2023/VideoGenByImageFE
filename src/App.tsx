@@ -9,6 +9,8 @@ import './index.css';
 const WEBSOCKET_URL = process.env.REACT_APP_WEBSOCKET_URL || "ws://localhost:8000/ws";
 const API_URL = process.env.REACT_APP_API_URL || "http://localhost:8000";
 
+const MAX_RECONNECT_DELAY = 30000;
+
 interface VideoDetails {
   id: number;
   file: File;
@@ -33,8 +35,6 @@ const App: React.FC = () => {
   const socketRef = useRef<WebSocket | null>(null);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const reconnectAttemptsRef = useRef(0);
-  const [messageQueue, setMessageQueue] = useState<WebSocketMessage[]>([]);
-  const handleDisconnectRef = useRef<() => void>(() => {});
 
   const processMessage = useCallback((data: WebSocketMessage) => {
     setUploadQueue(prevQueue =>
@@ -87,25 +87,25 @@ const App: React.FC = () => {
       // Clear interval on socket close
       newSocket.onclose = () => {
         clearInterval(pingInterval);
-        handleDisconnectRef.current();
+        handleDisconnect();
       };
     };
 
     newSocket.onmessage = (event) => {
       const data = JSON.parse(event.data);
       console.log('Received WebSocket message:', data);
-      setMessageQueue(prevQueue => [...prevQueue, data]);
+      processMessage(data);
     };
 
     newSocket.onerror = (error) => {
       console.error('WebSocket error:', error);
-      handleDisconnectRef.current();
+      handleDisconnect();
     };
 
     socketRef.current = newSocket;
-  }, [toast]);
+  }, [toast, processMessage]);
 
-  handleDisconnectRef.current = useCallback(() => {
+  const handleDisconnect = useCallback(() => {
     console.log('WebSocket disconnected');
     setIsConnected(false);
     toast({
@@ -115,7 +115,7 @@ const App: React.FC = () => {
     });
 
     // Exponential backoff for reconnection
-    const delay = Math.min(1000 * 2 ** reconnectAttemptsRef.current, 30000);
+    const delay = Math.min(1000 * 2 ** reconnectAttemptsRef.current, MAX_RECONNECT_DELAY);
     reconnectAttemptsRef.current++;
     if (reconnectTimeoutRef.current) {
       clearTimeout(reconnectTimeoutRef.current);
@@ -138,14 +138,6 @@ const App: React.FC = () => {
     };
   }, [connectWebSocket]);
 
-  useEffect(() => {
-    if (messageQueue.length > 0) {
-      const [message, ...rest] = messageQueue;
-      processMessage(message);
-      setMessageQueue(rest);
-    }
-  }, [messageQueue, processMessage]);
-
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     if (event.target.files) {
       const files = Array.from(event.target.files);
@@ -163,6 +155,15 @@ const App: React.FC = () => {
   };
 
   const uploadAllFiles = useCallback(async () => {
+    if (!isConnected) {
+      toast({
+        title: 'Upload failed',
+        description: 'WebSocket is not connected. Please try again when connected.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     const formData = new FormData();
     uploadQueue.forEach(task => {
       if (!task.isProcessing) {
@@ -189,10 +190,19 @@ const App: React.FC = () => {
       );
 
       data.files.forEach((filename: string) => {
-        socketRef.current?.send(JSON.stringify({
-          action: 'start_processing',
-          filename: filename
-        }));
+        if (socketRef.current?.readyState === WebSocket.OPEN) {
+          socketRef.current.send(JSON.stringify({
+            action: 'start_processing',
+            filename: filename
+          }));
+        } else {
+          console.error('WebSocket is not open. Unable to start processing.');
+          toast({
+            title: 'Processing delayed',
+            description: 'WebSocket is not connected. Processing will start when reconnected.',
+            variant: 'destructive',
+          });
+        }
       });
 
       toast({
@@ -207,7 +217,7 @@ const App: React.FC = () => {
         variant: 'destructive',
       });
     }
-  }, [uploadQueue, toast]);
+  }, [uploadQueue, toast, isConnected]);
 
   useEffect(() => {
     if (uploadQueue.some(task => !task.isProcessing)) {
@@ -259,32 +269,32 @@ const App: React.FC = () => {
           {uploadQueue.length > 0 && (
             <div className="mt-6 space-y-6">
               {uploadQueue.map(task => {
-              const filename = task.videoUrl 
-              ? task.videoUrl.split('/').pop()
-              : task.file.name;
-              return (
-                <div key={task.id} className="bg-white shadow-sm rounded-lg p-4">
-                  <h2 className="text-lg font-semibold mb-2">{filename}</h2>
-                  {!task.videoUrl && (
-                    <>
-                      <div className="w-full bg-gray-200 rounded-full h-2.5 dark:bg-gray-700">
-                        <div 
-                          className="bg-blue-600 h-2.5 rounded-full" 
-                          style={{ width: `${task.progress}%` }}
-                        >
+                const filename = task.videoUrl 
+                  ? task.videoUrl.split('/').pop()
+                  : task.file.name;
+                return (
+                  <div key={task.id} className="bg-white shadow-sm rounded-lg p-4">
+                    <h2 className="text-lg font-semibold mb-2">{filename}</h2>
+                    {!task.videoUrl && (
+                      <>
+                        <div className="w-full bg-gray-200 rounded-full h-2.5 dark:bg-gray-700">
+                          <div 
+                            className="bg-blue-600 h-2.5 rounded-full" 
+                            style={{ width: `${task.progress}%` }}
+                          >
+                          </div>
                         </div>
-                      </div>
-                      <p className="text-center mt-2 text-sm text-gray-600">
-                        {task.status || `${task.progress}% complete`}
-                      </p>
-                    </>
-                  )}
-                  {task.videoUrl && <CustomVideoPlayer src={task.videoUrl} />}
-                </div>
-              );
-            })}
-          </div>      
-        )}
+                        <p className="text-center mt-2 text-sm text-gray-600">
+                          {task.status || `${task.progress}% complete`}
+                        </p>
+                      </>
+                    )}
+                    {task.videoUrl && <CustomVideoPlayer src={task.videoUrl} />}
+                  </div>
+                );
+              })}
+            </div>      
+          )}
         </CardContent>
       </Card>
     </div>
