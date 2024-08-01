@@ -156,36 +156,75 @@ const App: React.FC = () => {
     };
 
     newSocket.onmessage = (event) => {
-      const data = JSON.parse(event.data);
-      console.log('Received WebSocket message:', data);
-      if (data.type === 'error' && data.message === 'Another client is already connected') {
-        setIsExplicitlyDisconnected(true);
-        newSocket.close();
-      } else if (data.type === 'connection' && data.status === 'established') {
-        if (confirmationTimeoutRef.current) {
-          clearTimeout(confirmationTimeoutRef.current);
-        }
-        console.log('WebSocket connection fully established');
-        setIsConnected(true);
-        reconnectAttemptsRef.current = 0;
-        setShouldReconnect(false);
-        setIsExplicitlyDisconnected(false);
-        toast({
-          title: 'WebSocket Connected',
-          description: 'Ready to process images.',
-        });
-        socketRef.current = newSocket;
-
-        // Send ping every 30 seconds
-        pingIntervalRef.current = setInterval(() => {
-          if (newSocket.readyState === WebSocket.OPEN) {
-            newSocket.send(JSON.stringify({ type: 'ping' }));
+      console.log('Raw WebSocket message:', event.data);
+      try {
+        const data = JSON.parse(event.data);
+        console.log('Parsed WebSocket message:', data);
+        if (data.type === 'error' && data.message === 'Another client is already connected') {
+          setIsExplicitlyDisconnected(true);
+          newSocket.close();
+        } else if (data.type === 'connection' && data.status === 'established') {
+          if (confirmationTimeoutRef.current) {
+            clearTimeout(confirmationTimeoutRef.current);
           }
-        }, 30000);
-      } else {
-        processMessage(data);
+          console.log('WebSocket connection fully established');
+          setIsConnected(true);
+          reconnectAttemptsRef.current = 0;
+          setShouldReconnect(false);
+          setIsExplicitlyDisconnected(false);
+          toast({
+            title: 'WebSocket Connected',
+            description: 'Ready to process images.',
+          });
+          socketRef.current = newSocket;
+    
+          // Send ping every 30 seconds
+          pingIntervalRef.current = setInterval(() => {
+            if (newSocket.readyState === WebSocket.OPEN) {
+              newSocket.send(JSON.stringify({ type: 'ping' }));
+            }
+          }, 30000);
+        } else if (data.type === 'pong') {
+          console.log('Received pong from server');
+        } else {
+          processMessage(data);
+        }
+      } catch (error) {
+        console.error('Error parsing WebSocket message:', error);
       }
     };
+
+    // newSocket.onmessage = (event) => {
+    //   const data = JSON.parse(event.data);
+    //   console.log('Received WebSocket message:', data);
+    //   if (data.type === 'error' && data.message === 'Another client is already connected') {
+    //     setIsExplicitlyDisconnected(true);
+    //     newSocket.close();
+    //   } else if (data.type === 'connection' && data.status === 'established') {
+    //     if (confirmationTimeoutRef.current) {
+    //       clearTimeout(confirmationTimeoutRef.current);
+    //     }
+    //     console.log('WebSocket connection fully established');
+    //     setIsConnected(true);
+    //     reconnectAttemptsRef.current = 0;
+    //     setShouldReconnect(false);
+    //     setIsExplicitlyDisconnected(false);
+    //     toast({
+    //       title: 'WebSocket Connected',
+    //       description: 'Ready to process images.',
+    //     });
+    //     socketRef.current = newSocket;
+
+    //     // Send ping every 30 seconds
+    //     pingIntervalRef.current = setInterval(() => {
+    //       if (newSocket.readyState === WebSocket.OPEN) {
+    //         newSocket.send(JSON.stringify({ type: 'ping' }));
+    //       }
+    //     }, 30000);
+    //   } else {
+    //     processMessage(data);
+    //   }
+    // };
 
     newSocket.onerror = (error) => {
       console.error('WebSocket error:', error);
