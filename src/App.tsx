@@ -39,6 +39,8 @@ const App: React.FC = () => {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const socketRef = useRef<WebSocket | null>(null);
   const reconnectAttemptsRef = useRef(0);
+  const confirmationTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const pingIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   const processMessage = useCallback((data: WebSocketMessage) => {
     if (data.filename) {
@@ -69,6 +71,10 @@ const App: React.FC = () => {
   const handleDisconnect = useCallback((event?: CloseEvent) => {
     console.log('Handling WebSocket disconnect', event);
     setIsConnected(false);
+    
+    if (pingIntervalRef.current) {
+      clearInterval(pingIntervalRef.current);
+    }
     
     if (!isExplicitlyDisconnected && reconnectAttemptsRef.current < MAX_RECONNECT_ATTEMPTS) {
       toast({
@@ -107,6 +113,11 @@ const App: React.FC = () => {
 
     newSocket.onopen = () => {
       console.log('WebSocket connection opened');
+      // 5 seconds timeout to connect to Web Socket
+      confirmationTimeoutRef.current = setTimeout(() => {
+        console.log('No confirmation received, closing connection');
+        newSocket.close(1000, "No confirmation received");
+      }, 5000); 
     };
 
     newSocket.onmessage = (event) => {
@@ -116,6 +127,9 @@ const App: React.FC = () => {
         setIsExplicitlyDisconnected(true);
         newSocket.close();
       } else if (data.type === 'connection' && data.status === 'established') {
+        if (confirmationTimeoutRef.current) {
+          clearTimeout(confirmationTimeoutRef.current);
+        }
         console.log('WebSocket connection fully established');
         setIsConnected(true);
         reconnectAttemptsRef.current = 0;
@@ -128,18 +142,11 @@ const App: React.FC = () => {
         socketRef.current = newSocket;
 
         // Send ping every 30 seconds
-        const pingInterval = setInterval(() => {
+        pingIntervalRef.current = setInterval(() => {
           if (newSocket.readyState === WebSocket.OPEN) {
             newSocket.send(JSON.stringify({ type: 'ping' }));
           }
         }, 30000);
-
-        // Clear interval on socket close
-        newSocket.onclose = (event) => {
-          clearInterval(pingInterval);
-          console.log('WebSocket closed:', event);
-          handleDisconnect(event);
-        };
       } else {
         processMessage(data);
       }
@@ -147,6 +154,11 @@ const App: React.FC = () => {
 
     newSocket.onerror = (error) => {
       console.error('WebSocket error:', error);
+    };
+
+    newSocket.onclose = (event) => {
+      console.log('WebSocket closed:', event);
+      handleDisconnect(event);
     };
 
     socketRef.current = newSocket;
@@ -158,6 +170,12 @@ const App: React.FC = () => {
     }
 
     return () => {
+      if (confirmationTimeoutRef.current) {
+        clearTimeout(confirmationTimeoutRef.current);
+      }
+      if (pingIntervalRef.current) {
+        clearInterval(pingIntervalRef.current);
+      }
       if (socketRef.current) {
         socketRef.current.close();
       }
