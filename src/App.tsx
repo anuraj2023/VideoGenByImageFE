@@ -138,23 +138,120 @@ const App: React.FC = () => {
   //   }
   // }, [toast, isExplicitlyDisconnected]);
 
+  // const connectWebSocket = useCallback(() => {
+  //   if (socketRef.current?.readyState === WebSocket.OPEN || !shouldReconnect || isExplicitlyDisconnected) {
+  //     return;
+  //   }
+
+  //   console.log('Attempting to connect WebSocket');
+  //   const newSocket = new WebSocket(WEBSOCKET_URL);
+
+  //   newSocket.onopen = () => {
+  //     console.log('WebSocket connection opened');
+  //     // 5 seconds timeout to connect to Web Socket
+  //     confirmationTimeoutRef.current = setTimeout(() => {
+  //       console.log('No confirmation received, closing connection');
+  //       newSocket.close(1000, "No confirmation received");
+  //     }, 5000); 
+  //   };
+
+  //   newSocket.onmessage = (event) => {
+  //     console.log('Raw WebSocket message:', event.data);
+  //     try {
+  //       const data = JSON.parse(event.data);
+  //       console.log('Parsed WebSocket message:', data);
+  //       if (data.type === 'error' && data.message === 'Another client is already connected') {
+  //         setIsExplicitlyDisconnected(true);
+  //         newSocket.close();
+  //       } else if (data.type === 'connection' && data.status === 'established') {
+  //         if (confirmationTimeoutRef.current) {
+  //           clearTimeout(confirmationTimeoutRef.current);
+  //         }
+  //         console.log('WebSocket connection fully established');
+  //         setIsConnected(true);
+  //         reconnectAttemptsRef.current = 0;
+  //         setShouldReconnect(false);
+  //         setIsExplicitlyDisconnected(false);
+  //         toast({
+  //           title: 'WebSocket Connected',
+  //           description: 'Ready to process images.',
+  //         });
+  //         socketRef.current = newSocket;
+    
+  //         // Send ping every 30 seconds
+  //         pingIntervalRef.current = setInterval(() => {
+  //           if (newSocket.readyState === WebSocket.OPEN) {
+  //             newSocket.send(JSON.stringify({ type: 'ping' }));
+  //           }
+  //         }, 30000);
+  //       } else if (data.type === 'pong') {
+  //         console.log('Received pong from server');
+  //       } else {
+  //         processMessage(data);
+  //       }
+  //     } catch (error) {
+  //       console.error('Error parsing WebSocket message:', error);
+  //     }
+  //   };
+
+  //   // newSocket.onmessage = (event) => {
+  //   //   const data = JSON.parse(event.data);
+  //   //   console.log('Received WebSocket message:', data);
+  //   //   if (data.type === 'error' && data.message === 'Another client is already connected') {
+  //   //     setIsExplicitlyDisconnected(true);
+  //   //     newSocket.close();
+  //   //   } else if (data.type === 'connection' && data.status === 'established') {
+  //   //     if (confirmationTimeoutRef.current) {
+  //   //       clearTimeout(confirmationTimeoutRef.current);
+  //   //     }
+  //   //     console.log('WebSocket connection fully established');
+  //   //     setIsConnected(true);
+  //   //     reconnectAttemptsRef.current = 0;
+  //   //     setShouldReconnect(false);
+  //   //     setIsExplicitlyDisconnected(false);
+  //   //     toast({
+  //   //       title: 'WebSocket Connected',
+  //   //       description: 'Ready to process images.',
+  //   //     });
+  //   //     socketRef.current = newSocket;
+
+  //   //     // Send ping every 30 seconds
+  //   //     pingIntervalRef.current = setInterval(() => {
+  //   //       if (newSocket.readyState === WebSocket.OPEN) {
+  //   //         newSocket.send(JSON.stringify({ type: 'ping' }));
+  //   //       }
+  //   //     }, 30000);
+  //   //   } else {
+  //   //     processMessage(data);
+  //   //   }
+  //   // };
+
+  //   newSocket.onerror = (error) => {
+  //     console.error('WebSocket error:', error);
+  //   };
+
+  //   newSocket.onclose = (event) => {
+  //     console.log('WebSocket closed:', event);
+  //     handleDisconnect(event);
+  //   };
+
+  //   socketRef.current = newSocket;
+  // }, [toast, processMessage, handleDisconnect, shouldReconnect, isExplicitlyDisconnected]);
+
   const connectWebSocket = useCallback(() => {
     if (socketRef.current?.readyState === WebSocket.OPEN || !shouldReconnect || isExplicitlyDisconnected) {
       return;
     }
-
+  
     console.log('Attempting to connect WebSocket');
     const newSocket = new WebSocket(WEBSOCKET_URL);
-
+  
     newSocket.onopen = () => {
       console.log('WebSocket connection opened');
-      // 5 seconds timeout to connect to Web Socket
-      confirmationTimeoutRef.current = setTimeout(() => {
-        console.log('No confirmation received, closing connection');
-        newSocket.close(1000, "No confirmation received");
-      }, 5000); 
+      // Send an initial message to the server
+      newSocket.send(JSON.stringify({ type: 'init' }));
     };
-
+  
     newSocket.onmessage = (event) => {
       console.log('Raw WebSocket message:', event.data);
       try {
@@ -164,9 +261,6 @@ const App: React.FC = () => {
           setIsExplicitlyDisconnected(true);
           newSocket.close();
         } else if (data.type === 'connection' && data.status === 'established') {
-          if (confirmationTimeoutRef.current) {
-            clearTimeout(confirmationTimeoutRef.current);
-          }
           console.log('WebSocket connection fully established');
           setIsConnected(true);
           reconnectAttemptsRef.current = 0;
@@ -177,7 +271,7 @@ const App: React.FC = () => {
             description: 'Ready to process images.',
           });
           socketRef.current = newSocket;
-    
+  
           // Send ping every 30 seconds
           pingIntervalRef.current = setInterval(() => {
             if (newSocket.readyState === WebSocket.OPEN) {
@@ -193,48 +287,16 @@ const App: React.FC = () => {
         console.error('Error parsing WebSocket message:', error);
       }
     };
-
-    // newSocket.onmessage = (event) => {
-    //   const data = JSON.parse(event.data);
-    //   console.log('Received WebSocket message:', data);
-    //   if (data.type === 'error' && data.message === 'Another client is already connected') {
-    //     setIsExplicitlyDisconnected(true);
-    //     newSocket.close();
-    //   } else if (data.type === 'connection' && data.status === 'established') {
-    //     if (confirmationTimeoutRef.current) {
-    //       clearTimeout(confirmationTimeoutRef.current);
-    //     }
-    //     console.log('WebSocket connection fully established');
-    //     setIsConnected(true);
-    //     reconnectAttemptsRef.current = 0;
-    //     setShouldReconnect(false);
-    //     setIsExplicitlyDisconnected(false);
-    //     toast({
-    //       title: 'WebSocket Connected',
-    //       description: 'Ready to process images.',
-    //     });
-    //     socketRef.current = newSocket;
-
-    //     // Send ping every 30 seconds
-    //     pingIntervalRef.current = setInterval(() => {
-    //       if (newSocket.readyState === WebSocket.OPEN) {
-    //         newSocket.send(JSON.stringify({ type: 'ping' }));
-    //       }
-    //     }, 30000);
-    //   } else {
-    //     processMessage(data);
-    //   }
-    // };
-
+  
     newSocket.onerror = (error) => {
       console.error('WebSocket error:', error);
     };
-
+  
     newSocket.onclose = (event) => {
       console.log('WebSocket closed:', event);
       handleDisconnect(event);
     };
-
+  
     socketRef.current = newSocket;
   }, [toast, processMessage, handleDisconnect, shouldReconnect, isExplicitlyDisconnected]);
 
@@ -245,6 +307,7 @@ const App: React.FC = () => {
 
     return () => {
       if (confirmationTimeoutRef.current) {
+        // eslint-disable-next-line react-hooks/exhaustive-deps
         clearTimeout(confirmationTimeoutRef.current);
       }
       if (pingIntervalRef.current) {
